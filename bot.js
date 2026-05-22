@@ -249,7 +249,21 @@ function extractTopic(content) {
   ];
   for (const p of patterns) {
     const m = content.match(p);
-    if (m && m[1]) return m[1].trim();
+    if (m && m[1]) {
+      const topic = m[1].trim();
+      const stopWords = [
+        '嗎', '么', '嘛', '呢', '啦', '吧', '呀', '哇', '啊',
+        '學', '不', '會', '能', '寫', '做', '弄',
+        '這個', '那個', '什麼', '怎麼', '誰', '哪',
+        '學不學', '會不會', '能不能', '是不是'
+      ];
+      if (stopWords.includes(topic)) continue;
+      if (topic.length === 1 && /[\u4e00-\u9fa5]/.test(topic)) {
+        const commonVerbsAndParticles = /^[學寫做弄看不聽說去來買用會能要想可好怕難懶]$/;
+        if (commonVerbsAndParticles.test(topic)) continue;
+      }
+      return topic;
+    }
   }
   return null;
 }
