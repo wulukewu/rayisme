@@ -1,4 +1,5 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const fs = require('fs');
 require('dotenv').config();
 
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -184,6 +185,32 @@ const guardConfig = new Map();
 const pressureCount = new Map(); // { odjectId: count }
 const considerTimers = new Map(); // { odjectId: { timerId, channelId, startTime } }
 
+const DATA_FILE = './data.json';
+
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, 'utf8');
+      const parsed = JSON.parse(raw);
+      for (const [key, value] of Object.entries(parsed)) {
+        pressureCount.set(key, value);
+      }
+      console.log('📊 歷史壓榨戰績載入成功！');
+    }
+  } catch (error) {
+    console.error('載入戰績資料失敗：', error);
+  }
+}
+
+function saveData() {
+  try {
+    const obj = Object.fromEntries(pressureCount);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
+  } catch (error) {
+    console.error('儲存戰績資料失敗：', error);
+  }
+}
+
 // ====== 工具函數 ======
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -230,6 +257,7 @@ function extractTopic(content) {
 function addPressureCount(userId) {
   const current = pressureCount.get(userId) || 0;
   pressureCount.set(userId, current + 1);
+  saveData();
   return current + 1;
 }
 
@@ -388,6 +416,7 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === '重置戰績') {
       const target = interaction.options.getUser('對象');
       pressureCount.delete(target.id);
+      saveData();
       await interaction.reply({ content: `${target} 的壓榨記錄已清除，給你一次重新做人的機會` });
     }
 
@@ -646,4 +675,5 @@ client.on('messageCreate', async (message) => {
   });
 }
 
+loadData();
 initBot(true);
