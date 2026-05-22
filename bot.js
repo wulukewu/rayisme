@@ -167,17 +167,31 @@ function getPressureCount(userId) {
 }
 
 // ====== Bot 主體 ======
-const client = new Client({
-  intents: [
+let client;
+
+function initBot(useMessageContent = true) {
+  const intents = [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    // GatewayIntentBits.MessageContent, // 暫時關閉此特權意圖以防止 "Used disallowed intents" 錯誤。若已在後台開啟此權限，可取消註解。
-  ],
-});
+  ];
 
-client.once('ready', () => {
-  console.log(`反擊 Bot 已上線：${client.user.tag}`);
-});
+  if (useMessageContent) {
+    intents.push(GatewayIntentBits.MessageContent);
+    console.log('嘗試啟用 Message Content Intent...');
+  } else {
+    console.log('以安全相容模式啟動（無 Message Content Intent）...');
+  }
+
+  client = new Client({ intents });
+
+  client.once('ready', () => {
+    console.log(`反擊 Bot 已上線：${client.user.tag}`);
+    if (useMessageContent) {
+      console.log('✨ Message Content Intent 已啟用，自動偵測反壓榨功能運作中！');
+    } else {
+      console.warn('⚠️ 未啟用 Message Content Intent。目前僅支援 Slash 手動指令，自動偵測功能將不生效。');
+    }
+  });
 
 // ====== Slash Commands ======
 client.on('interactionCreate', async (interaction) => {
@@ -489,4 +503,27 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-client.login(TOKEN);
+  if (useMessageContent) {
+    client.on('error', (error) => {
+      if (error.message && (error.message.includes('disallowed intents') || error.message.includes('disallowed'))) {
+        console.warn('⚠️ 偵測到 Discord Bot 未開啟 Message Content Intent 特權！將自動切換為相容模式重新連線...');
+        client.destroy();
+        setTimeout(() => initBot(false), 1000);
+      } else {
+        console.error('Client 發生錯誤：', error);
+      }
+    });
+  }
+
+  client.login(TOKEN).catch((error) => {
+    if (useMessageContent && error.message && (error.message.includes('disallowed intents') || error.message.includes('disallowed'))) {
+      console.warn('⚠️ 登入失敗（特權意圖未開啟），正在切換為相容模式重新連線...');
+      client.destroy();
+      setTimeout(() => initBot(false), 1000);
+    } else {
+      console.error('登入時發生錯誤：', error);
+    }
+  });
+}
+
+initBot(true);

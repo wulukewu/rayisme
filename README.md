@@ -54,6 +54,20 @@ cp .env.example .env
 
 > `TARGET_BOT_ID` 和 `TARGET_USER_ID` 是 optional 的。不填的話手動指令（`/模仿ray`、`/護航模式` 等）一樣能用，只是自動系統不會啟動。
 
+> [!IMPORTANT]
+> **關於「自動監聽系統」（自動反壓榨、發言偵測等）：**
+> 由於 Discord 的隱私規範，自動監聽一般訊息的功能需要啟用 **Message Content Intent**（訊息內容意圖）特權。
+> 
+> 💡 **自動降級與相容模式：**
+> 本專案已實作**自動偵測與降級機制**。啟動時 Bot 會自動嘗試使用該特權。如果您的 Bot 未在後台開啟此權限，系統會**自動降級至「相容模式」運作，絕不崩潰！** 在相容模式下，手動的 Slash 指令仍可完全正常運作，唯獨自動監聽系統不會生效。
+> 
+> **如何開啟完整功能：**
+> 1. 前往 [Discord Developer Portal](https://discord.com/developers/applications) ➔ 選擇您的應用程式 ➔ 點擊左側 **Bot**。
+> 2. 往下拉找到 **Privileged Gateway Intents** 區塊，將 **MESSAGE CONTENT INTENT** 開啟（ON）並儲存。
+> 3. 重新啟動 Bot，程式便會自動偵測並啟用完整自動化功能，**無需修改任何程式碼**！
+
+
+
 註冊指令 & 啟動：
 
 ```bash
