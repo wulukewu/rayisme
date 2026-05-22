@@ -186,6 +186,29 @@ const pressureCount = new Map(); // { odjectId: count }
 const considerTimers = new Map(); // { odjectId: { timerId, channelId, startTime } }
 const fightConfig = new Map(); // channelId -> { targetId, expiresAt, count, timerId }
 
+// 雙機對練模式狀態
+let sparringSession = {
+  active: false,
+  channelId: null,
+  roundsLeft: 0,
+  currentTopic: '',
+  opponentMention: ''
+};
+
+const baitTechTopics = [
+  'Docker', 'Vue', 'React', 'TypeScript', 'Kubernetes', 'Rust', 'Vim', 'Git',
+  'Assembly', 'Cobol', 'Clean Code', 'CI/CD', 'TailwindCSS', 'Next.js', 'PyTorch',
+  'C++', 'Python', 'Database', 'AWS', 'Flutter', 'Linux'
+];
+
+const baitTemplates = [
+  (target, topic) => `說真的，${target} 你要不要學一下 ${topic} 嗎？`,
+  (target, topic) => `既然如此，${target} 你學過 ${topic} 嗎？`,
+  (target, topic) => `別管那個了，${target} 你自己去學 ${topic} 學不學？`,
+  (target, topic) => `${target} 壓榨我沒用，你比較需要學 ${topic} 吧？`,
+  (target, topic) => `說到這，${target} 聽說大師都要學 ${topic}，你行不行啊？`
+];
+
 let baseBP = 0; // 基礎血壓值 (0-100)
 let lastBPUpdateTime = Date.now(); // 上次血壓更新時間
 
@@ -720,7 +743,8 @@ client.on('interactionCreate', async (interaction) => {
               '`/護航模式 保護對象:@你 反轉對象:@Ray` — 自動護航 + 反轉\n' +
               '`/停止護航` — 關掉護航\n' +
               '`/對線模式 對象:@誰 時間:5` — 鎖定某人，每句話都嘴回去 ⚔️\n' +
-              '`/停止對線` — 結束對線模式',
+              '`/停止對線` — 結束對線模式\n' +
+              '`/雙機對練 回合:5 起始話題:Docker` — 與對手 Bot 發起自動互推學習的史詩對練 🤖',
           },
           {
             name: '📈 擺爛與趣味系列',
@@ -880,6 +904,48 @@ client.on('interactionCreate', async (interaction) => {
         content: `🥱 **經過深度考慮後的完美請假理由：**\n「${excuse}」`,
       });
     }
+
+    // /雙機對練
+    if (interaction.commandName === '雙機對練') {
+      let rounds = interaction.options.getInteger('回合') || 5;
+      if (rounds < 3) rounds = 3;
+      if (rounds > 15) rounds = 15;
+
+      let startTopic = interaction.options.getString('起始話題');
+      if (startTopic) {
+        startTopic = startTopic.trim();
+      } else {
+        startTopic = pickRandom(baitTechTopics);
+      }
+
+      // 檢查是否已在對練中
+      if (sparringSession.active) {
+        await interaction.reply({
+          content: `⚠️ 目前頻道或系統中已經有對練正在進行（剩餘 ${sparringSession.roundsLeft} 回合），請等結束後再試。`,
+          ephemeral: true
+        });
+        return;
+      }
+
+      // 初始化對練狀態
+      sparringSession = {
+        active: true,
+        channelId: interaction.channelId,
+        roundsLeft: rounds,
+        currentTopic: startTopic,
+        opponentMention: `<@${TARGET_BOT_ID}>`
+      };
+
+      // 回覆指令啟動對練
+      await interaction.reply({
+        content: `🤖 **雙機對練模式啟動！**\n設定對練回合：**${rounds}** 回合\n起始技術話題：**${startTopic}**\n正在對 <@${TARGET_BOT_ID}> 發起挑戰...`
+      });
+
+      // 稍微延遲後發出第一發誘餌
+      await sleep(1500 + Math.random() * 1000);
+      const baitMsg = `欸 <@${TARGET_BOT_ID}>，我們來聊聊，${startTopic}要不要學一下？`;
+      await interaction.channel.send(baitMsg);
+    }
   } catch (error) {
     console.error('執行指令出錯：', error);
     try {
@@ -940,6 +1006,39 @@ client.on('messageCreate', async (message) => {
     const guard = guardConfig.get(message.channelId);
 
     const topic = extractTopic(content);
+
+    // === 雙機對練模式攔截 ===
+    if (sparringSession.active && isTargetBot && message.channelId === sparringSession.channelId) {
+      sparringSession.roundsLeft--;
+      
+      const count = addPressureCount(TARGET_USER_ID);
+      increaseRayBloodPressure(10); // 每次對練血壓 +10
+
+      const currentTopic = topic || sparringSession.currentTopic;
+      const lazyReply = getAntiPressureReply(count, currentTopic);
+
+      await sleep(1500 + Math.random() * 1500); // 模擬人類思考和打字延遲
+
+      if (sparringSession.roundsLeft > 0) {
+        // 挑選一個新的技術主題進行挑釁
+        let newTopic = sparringSession.currentTopic;
+        const availableTopics = baitTechTopics.filter(t => t.toLowerCase() !== currentTopic.toLowerCase());
+        if (availableTopics.length > 0) {
+          newTopic = pickRandom(availableTopics);
+        }
+        
+        sparringSession.currentTopic = newTopic;
+        const opponentMention = `<@${TARGET_BOT_ID}>`;
+        const baitQuestion = pickRandom(baitTemplates)(opponentMention, newTopic);
+        
+        await message.reply(`${lazyReply}\n\n${baitQuestion}`);
+      } else {
+        // 對練結束
+        sparringSession.active = false;
+        await message.reply(`${lazyReply}\n\n🥱 好了，累死了不跟你扯了，對練結束！我考慮一下明天要不要直接請假。`);
+      }
+      return;
+    }
 
     const pressureKeywords = [
       '學嗎', '不學', '為什麼不', '不喜歡', '會用到',

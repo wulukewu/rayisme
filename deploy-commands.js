@@ -126,6 +126,16 @@ const commands = [
   new SlashCommandBuilder()
     .setName('請假理由')
     .setDescription('產生一個地表最強、極具創意且難以拒絕的請假藉口 🥱'),
+
+  new SlashCommandBuilder()
+    .setName('雙機對練')
+    .setDescription('與 對手 Bot 進行一場自動互推學習的史詩級對練 🤖')
+    .addIntegerOption((option) =>
+      option.setName('回合').setDescription('要對練的回合次數（範圍 3-15，預設 5）').setRequired(false)
+    )
+    .addStringOption((option) =>
+      option.setName('起始話題').setDescription('起始對練的技術話題（選填）').setRequired(false)
+    ),
 ].map((cmd) => cmd.toJSON());
 
 const rest = new REST().setToken(TOKEN);
