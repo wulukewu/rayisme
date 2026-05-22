@@ -1,7 +1,7 @@
 const { REST, Routes, SlashCommandBuilder } = require('discord.js');
 require('dotenv').config();
 
-const TOKEN = process.env.DISCORD_TOKEN;
+const TOKEN = process.env. DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
 const commands = [
@@ -22,7 +22,7 @@ const commands = [
       option.setName('保護對象').setDescription('要保護的人').setRequired(true)
     )
     .addUserOption((option) =>
-      option.setName('反轉對象').setDescription('要把壓力反轉給誰（Ray）').setRequired(true)
+      option.setName('反轉對象').setDescription('要把壓力反轉給誰').setRequired(true)
     )
     .addIntegerOption((option) =>
       option.setName('時間').setDescription('護航幾分鐘（預設 5 分鐘）').setRequired(false)
@@ -51,7 +51,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('戰績')
-    .setDescription('查看某人的壓榨次數記錄')
+    .setDescription('查看某人的壓榨次數與等級')
     .addUserOption((option) =>
       option.setName('對象').setDescription('要查誰的壓榨記錄').setRequired(true)
     ),
@@ -65,7 +65,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('考慮計時器')
-    .setDescription('開始計時某人的「考慮一下」，定期提醒他')
+    .setDescription('開始計時某人的「考慮一下」，越久越酸')
     .addUserOption((option) =>
       option.setName('對象').setDescription('誰說了考慮一下').setRequired(true)
     )
@@ -79,6 +79,10 @@ const commands = [
     .addUserOption((option) =>
       option.setName('對象').setDescription('要停止計時的人').setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName('幫助')
+    .setDescription('查看所有指令的使用說明'),
 ].map((cmd) => cmd.toJSON());
 
 const rest = new REST().setToken(TOKEN);

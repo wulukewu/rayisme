@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 require('dotenv').config();
 
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -77,28 +77,97 @@ const reverseReplies = [
   (ray) => `${ray} 你自己都懶得弄了 還好意思叫別人學`,
 ];
 
-// ====== 自動反壓榨語錄（用 Ray 口吻回嘴 pressure-bot）======
-const antiPressureReplies = [
-  () => '懶得學',
-  () => '考慮一下',
-  () => '明天再說啦',
-  () => '好啦好啦 考慮一下',
-  () => '懶得理你',
-  () => '你先學啊',
-  () => '我考慮一下...先不要',
-  () => '太累了 改天',
-  () => '不想動 懶',
-  () => '嗯...懶得回',
+// ====== 自動反壓榨（根據次數升級語氣）======
+const antiPressureLevels = [
+  // 1~3 次：淡定
+  {
+    maxCount: 3,
+    replies: [
+      (topic) => topic ? `${topic}？考慮一下` : '考慮一下',
+      (topic) => topic ? `${topic}喔 懶得學` : '懶得學',
+      () => '明天再說啦',
+      () => '好啦好啦 考慮一下',
+      (topic) => topic ? `${topic}太累了 改天` : '太累了 改天',
+    ],
+  },
+  // 4~7 次：不耐煩
+  {
+    maxCount: 7,
+    replies: [
+      () => '又來？懶得理你',
+      (topic) => topic ? `${topic}你自己先學好不好` : '你自己先學好不好',
+      () => '你是不是沒別的話可以說了',
+      () => '我考慮一下...算了不考慮了 不要',
+      (topic) => topic ? `講了幾次了 ${topic}我不想學` : '講了幾次了 我不想學',
+      () => '你有完沒完',
+    ],
+  },
+  // 8~14 次：反擊
+  {
+    maxCount: 14,
+    replies: [
+      (topic) => topic ? `你那麼愛${topic} 你自己去學啊` : '你那麼愛 你自己去學啊',
+      () => '壓榨上癮了是不是',
+      () => '我覺得你比較需要學「尊重」',
+      (topic) => topic ? `${topic}？我建議你先學「適可而止」` : '我建議你先學「適可而止」',
+      () => '你看看你 壓榨次數都破紀錄了',
+      () => '我已經從考慮一下升級到懶得考慮了',
+    ],
+  },
+  // 15+ 次：嘲諷
+  {
+    maxCount: Infinity,
+    replies: [
+      (topic) => topic ? `恭喜 你成功讓我對${topic}產生心理陰影` : '恭喜 你成功讓我產生心理陰影',
+      () => '壓榨之王 非你莫屬 要不要頒獎給你',
+      () => '你的壓榨已經可以寫成論文了',
+      () => '我建議你開一門課叫「如何用壓榨失去所有朋友」',
+      () => '你壓榨的頻率比你寫 code 的頻率還高',
+      () => '再壓榨一次我就去跟你媽說',
+    ],
+  },
 ];
 
-// ====== 考慮一下計時器提醒 ======
-const considerTimerMessages = [
-  (ray, mins) => `${ray} 說考慮一下已經 ${mins} 分鐘了，還在考慮嗎？`,
-  (ray, mins) => `${mins} 分鐘過去了，${ray} 大概忘了他在考慮什麼`,
-  (ray, mins) => `已經 ${mins} 分鐘了 ${ray} 你考慮好了嗎`,
-  (ray, mins) => `${ray} 的「考慮一下」已經持續 ${mins} 分鐘，破紀錄了`,
-  (ray, mins) => `等了 ${mins} 分鐘，${ray} 應該是懶得考慮了`,
-];
+function getAntiPressureReply(count, topic) {
+  const level = antiPressureLevels.find((l) => count <= l.maxCount);
+  return pickRandom(level.replies)(topic);
+}
+
+// ====== 考慮計時器（根據時間升級）======
+function getTimerMessage(target, mins) {
+  if (mins <= 5) {
+    const msgs = [
+      `${target} 說考慮一下已經 ${mins} 分鐘了，還在考慮嗎？`,
+      `提醒 ${target}：你說的考慮一下已經 ${mins} 分鐘了喔`,
+      `${target} 你考慮好了嗎？才 ${mins} 分鐘 我再等等`,
+    ];
+    return pickRandom(msgs);
+  }
+  if (mins <= 10) {
+    const msgs = [
+      `${mins} 分鐘了，${target} 你的「考慮一下」是不是其實是「不要」？`,
+      `${target} 考慮了 ${mins} 分鐘，我開始覺得這個考慮不會有結果`,
+      `已經 ${mins} 分鐘了 ${target} 你該不會忘了吧`,
+    ];
+    return pickRandom(msgs);
+  }
+  if (mins <= 20) {
+    const msgs = [
+      `${target} 的考慮進入第 ${mins} 分鐘，建議改名叫「拖延一下」`,
+      `${mins} 分鐘了 我宣布 ${target} 的「考慮一下」正式過期`,
+      `歷史記錄：${target} 曾考慮了 ${mins} 分鐘然後什麼都沒做`,
+      `${mins} 分鐘 ${target} 你是在考慮還是在睡覺`,
+    ];
+    return pickRandom(msgs);
+  }
+  const msgs = [
+    `⚠️ ${target} 已考慮 ${mins} 分鐘，系統判定為：懶得做`,
+    `${mins} 分鐘了 我替 ${target} 翻譯：「我不會做但面子掛不住」`,
+    `${target} 的考慮時間 ${mins} 分鐘，打破個人紀錄！上次好像也是什麼都沒做`,
+    `最終報告：${target} 考慮了 ${mins} 分鐘，結論是他從來就沒打算做`,
+  ];
+  return pickRandom(msgs);
+}
 
 // ====== 壓榨回力鏢模板 ======
 const boomerangTemplates = [
@@ -106,6 +175,8 @@ const boomerangTemplates = [
   (ray, topic) => `${ray} 你${topic}看過了嗎？`,
   (ray, topic) => `我覺得 ${ray} 可以學一下${topic}耶`,
   (ray, topic) => `${ray} 你聽好：\n${topic}蠻重要的 你知道吧？`,
+  (ray, topic) => `說到${topic} ${ray} 你是不是也不會？`,
+  (ray, topic) => `${ray} 你壓榨別人學${topic} 但你自己學了嗎`,
 ];
 
 // ====== 系統狀態 ======
@@ -295,13 +366,21 @@ client.on('interactionCreate', async (interaction) => {
       if (count === 0) {
         await interaction.reply({ content: `${target} 目前還沒有壓榨記錄...是在裝乖嗎` });
       } else {
-        const comments = [
-          `${target} 已經壓榨了 **${count}** 次，自己卻什麼都懶得做 :)`,
-          `${target} 壓榨次數：**${count}** 次。建議本人先把自己的事做完`,
-          `記錄顯示 ${target} 壓榨了 **${count}** 次。很閒齁？`,
-          `${target} 的壓榨計數器：**${count}**。考慮一下自己要不要先學？`,
-        ];
-        await interaction.reply({ content: pickRandom(comments) });
+        const level =
+          count < 4 ? '初級壓榨者 🟢' :
+          count < 8 ? '慣性壓榨者 🟡' :
+          count < 15 ? '壓榨成癮者 🟠' : '壓榨之王 🔴';
+
+        const embed = new EmbedBuilder()
+          .setTitle(`${target.username} 的壓榨戰績`)
+          .addFields(
+            { name: '壓榨次數', value: `**${count}** 次`, inline: true },
+            { name: '等級', value: level, inline: true },
+          )
+          .setColor(count < 4 ? 0x00ff00 : count < 8 ? 0xffff00 : count < 15 ? 0xff8800 : 0xff0000)
+          .setFooter({ text: '建議本人先把自己的事做完再壓榨別人' });
+
+        await interaction.reply({ embeds: [embed] });
       }
     }
 
@@ -326,12 +405,12 @@ client.on('interactionCreate', async (interaction) => {
       const rayMention = `${target}`;
 
       await interaction.reply({
-        content: `⏱️ 開始計時！${target} 說要「考慮一下」，我每 ${intervalMin} 分鐘提醒一次`,
+        content: `⏱️ 開始計時！${target} 說要「考慮一下」，我每 ${intervalMin} 分鐘提醒一次\n（時間越久我越不客氣）`,
       });
 
       const timerId = setInterval(() => {
         const mins = Math.round((Date.now() - startTime) / 60000);
-        const msg = pickRandom(considerTimerMessages)(rayMention, mins);
+        const msg = getTimerMessage(rayMention, mins);
         interaction.channel.send(msg).catch(() => {
           clearInterval(timerId);
           considerTimers.delete(target.id);
@@ -344,13 +423,12 @@ client.on('interactionCreate', async (interaction) => {
         startTime,
       });
 
-      // 30 分鐘後自動停止
       setTimeout(() => {
         if (considerTimers.has(target.id)) {
           clearInterval(considerTimers.get(target.id).timerId);
           considerTimers.delete(target.id);
           interaction.channel
-            .send(`${target} 考慮了 30 分鐘，結論大概是：懶得考慮`)
+            .send(`🏁 最終判決：${target} 考慮了 30 分鐘，結論是——他從來就沒打算做`)
             .catch(() => {});
         }
       }, 30 * 60 * 1000);
@@ -369,8 +447,53 @@ client.on('interactionCreate', async (interaction) => {
           content: `${target} 的考慮時間：${mins} 分鐘。結果呢？大概還是懶得弄`,
         });
       } else {
-        await interaction.reply({ content: `沒有在計時這個人啊` });
+        await interaction.reply({ content: '沒有在計時這個人啊' });
       }
+    }
+
+    // /幫助
+    if (interaction.commandName === '幫助') {
+      const embed = new EmbedBuilder()
+        .setTitle('Rayisme Bot 使用說明')
+        .setDescription('用 Ray 的人設反擊 Ray 的壓榨機器人')
+        .addFields(
+          {
+            name: '🎭 模仿系列',
+            value:
+              '`/模仿ray 主題:Vue` — 產生一段 Ray 風格語錄\n' +
+              '`/懶得 事情:debug` — 單發一句懶回應\n' +
+              '`/考慮一下` — 連續轟炸「考慮一下」',
+          },
+          {
+            name: '🛡️ 護航系統',
+            value:
+              '`/護航模式 保護對象:@你 反轉對象:@Ray` — 自動護航 + 反轉\n' +
+              '`/停止護航` — 關掉護航',
+          },
+          {
+            name: '📊 壓榨記錄',
+            value:
+              '`/戰績 對象:@Ray` — 查壓榨次數與等級\n' +
+              '`/重置戰績 對象:@Ray` — 清除記錄',
+          },
+          {
+            name: '⏱️ 考慮計時器',
+            value:
+              '`/考慮計時器 對象:@Ray` — 他說考慮一下？開始計時\n' +
+              '`/停止計時 對象:@Ray` — 停止計時',
+          },
+          {
+            name: '🤖 自動功能（不用下指令）',
+            value:
+              '• 偵測到對方 Bot 壓榨 → 自動回嘴（語氣隨次數升級）\n' +
+              '• 壓榨回力鏢 → 抽出主題反彈給對方\n' +
+              '• 偵測對方本人說「考慮」「懶得」→ 自動吐槽',
+          },
+        )
+        .setColor(0x5865f2)
+        .setFooter({ text: '需要 TARGET_BOT_ID / TARGET_USER_ID 才能啟用自動功能' });
+
+      await interaction.reply({ embeds: [embed] });
     }
   } catch (error) {
     console.error('執行指令出錯：', error);
@@ -390,26 +513,25 @@ client.on('messageCreate', async (message) => {
 
   try {
     const content = message.content;
-    const isRayBot = message.author.id === TARGET_BOT_ID;
-    const isRay = message.author.id === TARGET_USER_ID;
+    const isTargetBot = message.author.id === TARGET_BOT_ID;
+    const isTargetUser = message.author.id === TARGET_USER_ID;
     const guard = guardConfig.get(message.channelId);
 
-    // --- 壓榨關鍵字偵測 ---
     const pressureKeywords = [
       '學嗎', '不學', '為什麼不', '不喜歡', '會用到',
       '要不要學', '蠻重要', '你說啊', '所以...學嗎',
     ];
     const isPressure = pressureKeywords.some((kw) => content.includes(kw));
 
-    // === 功能 1：自動反壓榨（偵測 pressure-bot 的訊息，用 Ray 口吻回嘴）===
-    if (isRayBot && isPressure) {
-      addPressureCount(TARGET_USER_ID);
+    // === 功能 1：自動反壓榨（升級版）===
+    if (isTargetBot && isPressure) {
+      const count = addPressureCount(TARGET_USER_ID);
+      const topic = extractTopic(content);
 
       await sleep(500 + Math.random() * 1000);
-      await message.reply(pickRandom(antiPressureReplies)());
+      await message.reply(getAntiPressureReply(count, topic));
 
-      // 壓榨回力鏢：抓出主題，反彈給 Ray
-      const topic = extractTopic(content);
+      // 壓榨回力鏢
       if (topic && TARGET_USER_ID) {
         await sleep(1000 + Math.random() * 1000);
         const rayMention = `<@${TARGET_USER_ID}>`;
@@ -417,18 +539,20 @@ client.on('messageCreate', async (message) => {
       }
 
       // 每 5 次壓榨加碼嘲諷
-      const count = getPressureCount(TARGET_USER_ID);
-      if (count % 5 === 0 && count > 0) {
+      if (count % 5 === 0) {
         await sleep(800);
-        await message.channel.send(
-          `📊 提醒一下，壓榨計數器已經到 **${count}** 次了。${TARGET_USER_ID ? `<@${TARGET_USER_ID}>` : 'Ray'} 你自己做了幾件事？`
-        );
+        const milestones = [
+          `📊 壓榨計數器：**${count}** 次。${TARGET_USER_ID ? `<@${TARGET_USER_ID}>` : '對方'} 你自己做了幾件事？`,
+          `🏆 恭喜達成 ${count} 次壓榨成就！建議頒發「年度壓榨王」獎`,
+          `📈 壓榨次數突破 **${count}**，這個頻率比他交作業還勤勞`,
+        ];
+        await message.channel.send(pickRandom(milestones));
       }
 
       return;
     }
 
-    // === 功能 2：護航模式（偵測任何人壓榨被保護的人）===
+    // === 功能 2：護航模式 ===
     if (guard && isPressure && !message.author.bot) {
       if (Date.now() > guard.expiresAt) {
         guardConfig.delete(message.channelId);
@@ -441,24 +565,18 @@ client.on('messageCreate', async (message) => {
 
       const protectMention = `<@${guard.protectId}>`;
       const rayMention = `<@${guard.rayId}>`;
-
-      // 護航 + 反轉 + 回力鏢
+      const topic = extractTopic(content);
       const roll = Math.random();
 
       if (roll < 0.3) {
-        // 純護航
         await message.reply(pickRandom(praiseReplies)(protectMention));
       } else if (roll < 0.6) {
-        // 純反轉
         await message.reply(pickRandom(reverseReplies)(rayMention));
       } else if (roll < 0.85) {
-        // 護航 + 反轉
         await message.reply(pickRandom(praiseReplies)(protectMention));
         await sleep(800 + Math.random() * 800);
         await message.channel.send(pickRandom(reverseReplies)(rayMention));
       } else {
-        // 回力鏢：把壓榨原封不動轉給 Ray
-        const topic = extractTopic(content);
         if (topic) {
           await message.reply(pickRandom(boomerangTemplates)(rayMention, topic));
         } else {
@@ -469,8 +587,8 @@ client.on('messageCreate', async (message) => {
       return;
     }
 
-    // === 功能 3：偵測 Ray 本人說「考慮一下」或「懶得」===
-    if (isRay) {
+    // === 功能 3：偵測對方本人說「考慮一下」或「懶得」===
+    if (isTargetUser) {
       const saidConsider = content.includes('考慮') || content.includes('想一下') || content.includes('再說');
       const saidLazy = content.includes('懶得') || content.includes('懶') || content.includes('不想動');
 
@@ -482,6 +600,7 @@ client.on('messageCreate', async (message) => {
           '考慮？你是不是又要拖到忘記',
           '翻譯：我不想做但不好意思直說',
           '考慮一下計時開始 ⏱️',
+          '你說的考慮一下 大家都知道是什麼意思',
         ];
         await message.reply(pickRandom(responses));
       }
@@ -492,8 +611,9 @@ client.on('messageCreate', async (message) => {
           '知道 你什麼都懶',
           '懶的話就不要壓榨別人啊',
           '你看 連你自己都懶了 憑什麼叫別人學',
-          '懶得弄 + 考慮一下 = Ray 的日常',
+          '懶得弄 + 考慮一下 = 你的日常',
           '至少你很誠實',
+          '你如果把懶的力氣拿去做事 早就做完了',
         ];
         await message.reply(pickRandom(responses));
       }
