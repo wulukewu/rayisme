@@ -807,7 +807,7 @@ client.on('interactionCreate', async (interaction) => {
       const barLength = Math.round(bp / 10);
       const bar = '█'.repeat(barLength) + '░'.repeat(10 - barLength);
       
-      let status = '健康 🟢 (極度放鬆，目前大概在睡覺或打傳說對決)';
+      let status = '健康 🟢 (極度放鬆，目前大概在睡覺或打荒野亂鬥)';
       let color = 0x00ff00;
       if (bp >= 80) {
         status = '危險 🔴 (極度暴躁！大腦處於離職邊緣，對所有訊息有 15% 機率回以抱怨！)';
