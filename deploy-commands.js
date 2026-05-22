@@ -83,6 +83,27 @@ const commands = [
   new SlashCommandBuilder()
     .setName('幫助')
     .setDescription('查看所有指令的使用說明'),
+
+  new SlashCommandBuilder()
+    .setName('對線模式')
+    .setDescription('鎖定目標對象進行無條件反擊回嘴（Ray 人設）')
+    .addUserOption((option) =>
+      option.setName('對象').setDescription('鎖定的對線目標').setRequired(true)
+    )
+    .addIntegerOption((option) =>
+      option.setName('時間').setDescription('對線時間（分鐘，預設 5 分鐘）').setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName('停止對線')
+    .setDescription('放過對方，手動解除對線模式'),
+
+  new SlashCommandBuilder()
+    .setName('敷衍翻譯')
+    .setDescription('將任何正經內容翻譯成 Ray 的終極擺爛敷衍版本')
+    .addStringOption((option) =>
+      option.setName('內容').setDescription('要翻譯的文字').setRequired(true)
+    ),
 ].map((cmd) => cmd.toJSON());
 
 const rest = new REST().setToken(TOKEN);

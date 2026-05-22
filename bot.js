@@ -184,6 +184,96 @@ const boomerangTemplates = [
 const guardConfig = new Map();
 const pressureCount = new Map(); // { odjectId: count }
 const considerTimers = new Map(); // { odjectId: { timerId, channelId, startTime } }
+const fightConfig = new Map(); // channelId -> { targetId, expiresAt, count }
+
+// ====== 對線模式漸進式語錄 ======
+const fightReplies = {
+  // 1~3 次：淡定敷衍 🟢
+  low: [
+    () => '嗯...',
+    () => '喔。',
+    () => '隨便啦。',
+    () => '懶得回你。',
+    () => '好累喔，隨便你怎麼說。',
+    () => '明天再說啦，今天不想動腦。',
+    () => '你高興就好。',
+  ],
+  // 4~7 次：逐漸暴躁 🟡
+  medium: [
+    (target) => `欸 ${target}，你話很多耶...`,
+    () => '打字很累知道嗎？可以不要一直傳嗎？',
+    () => '考慮一下先閉嘴好不好？',
+    () => '（已對您開啟靜音模式 🔇，雖然我還是自動回了這句）',
+    () => '你是不是很閒？我很累耶。',
+    () => '反正就...懶得理你。',
+    () => '我有權保持沉默，但我更想叫你閉嘴。',
+  ],
+  // 8+ 次：靈魂大反擊 🔴
+  high: [
+    (target) => `你那麼有活力跟我對線，怎麼不去幫大家寫 code？`,
+    (target) => `${target} 的打字速度快到我心跳加速，我考慮一下要不要去跟你媽說你很吵。`,
+    () => '我打字好累喔，你自己跟牆壁對線啦！',
+    () => '恭喜你成功讓我進入『懶得搭理』終極擺爛狀態。',
+    () => '你的打字速度如果拿去寫報告，現在應該已經財富自由了。',
+    () => '我決定把你的頭像打馬賽克，因為你的廢話太耀眼了。',
+    () => '再吵一句，我就考慮一下明天不讓你點午餐。',
+  ],
+};
+
+function getFightReply(count, targetMention) {
+  if (count <= 3) {
+    return pickRandom(fightReplies.low)();
+  }
+  if (count <= 7) {
+    return pickRandom(fightReplies.medium)(targetMention);
+  }
+  return pickRandom(fightReplies.high)(targetMention);
+}
+
+// ====== 敷衍翻譯功能 ======
+function translateToRay(text) {
+  let topic = text.trim();
+  if (topic.length > 10) {
+    topic = topic.substring(0, 8) + '...';
+  }
+  
+  const lazyOpeners = [
+    `${topic}喔...`,
+    `${topic}？`,
+    `你說${topic}？`,
+    `嗯 ${topic}...`,
+  ];
+  
+  const lazyReplies = [
+    `懶得弄啦`,
+    `感覺好複雜 懶得研究`,
+    `好累 懶得想`,
+    `太麻煩了 懶得理`,
+    `改天再說 懶得處理`,
+  ];
+
+  const considerReplies = [
+    `我考慮一下 先不要`,
+    `這個我要考慮一下耶`,
+    `我再考慮一下喔`,
+    `考慮一下 明天跟你說`,
+  ];
+
+  const rayClosers = [
+    `反正就...懶得弄`,
+    `考慮一下`,
+    `再說啦`,
+    `明天再說`,
+    `不想動`,
+    `好累喔`,
+  ];
+
+  const opener = pickRandom(lazyOpeners);
+  const replies = pickRandomN([...lazyReplies, ...considerReplies], 2);
+  const closer = pickRandom(rayClosers);
+
+  return `🥱 **Ray 風格翻譯結果：**\n「${opener} ${replies[0]}，${replies[1]}，${closer}。」`;
+}
 
 const DATA_FILE = './data.json';
 
@@ -501,17 +591,20 @@ client.on('interactionCreate', async (interaction) => {
         .setDescription('用 Ray 的人設反擊 Ray 的壓榨機器人')
         .addFields(
           {
-            name: '🎭 模仿系列',
+            name: '🎭 模仿與翻譯系列',
             value:
               '`/模仿ray 主題:Vue` — 產生一段 Ray 風格語錄\n' +
               '`/懶得 事情:debug` — 單發一句懶回應\n' +
-              '`/考慮一下` — 連續轟炸「考慮一下」',
+              '`/考慮一下` — 連續轟炸「考慮一下」\n' +
+              '`/敷衍翻譯 內容:明天要開會` — 將任何話翻譯成擺爛風格 🥱',
           },
           {
-            name: '🛡️ 護航系統',
+            name: '🛡️ 護航與對線系統',
             value:
               '`/護航模式 保護對象:@你 反轉對象:@Ray` — 自動護航 + 反轉\n' +
-              '`/停止護航` — 關掉護航',
+              '`/停止護航` — 關掉護航\n' +
+              '`/對線模式 對象:@誰 時間:5` — 鎖定某人，每句話都嘴回去 ⚔️\n' +
+              '`/停止對線` — 結束對線模式',
           },
           {
             name: '📊 壓榨記錄',
@@ -530,13 +623,50 @@ client.on('interactionCreate', async (interaction) => {
             value:
               '• 偵測到對方 Bot 壓榨 → 自動回嘴（語氣隨次數升級）\n' +
               '• 壓榨回力鏢 → 抽出主題反彈給對方\n' +
-              '• 偵測對方本人說「考慮」「懶得」→ 自動吐槽',
+              '• 偵測對方本人說「考慮」「懶得」→ 自動吐槽\n' +
+              '• 對線模式開啟下，目標只要說任何話都會被動態嘴回去 💬',
           },
         )
         .setColor(0x5865f2)
         .setFooter({ text: '需要 TARGET_BOT_ID / TARGET_USER_ID 才能啟用自動功能' });
 
       await interaction.reply({ embeds: [embed] });
+    }
+
+    // /對線模式
+    if (interaction.commandName === '對線模式') {
+      const target = interaction.options.getUser('對象');
+      const minutes = interaction.options.getInteger('時間') || 5;
+      const expiresAt = Date.now() + minutes * 60 * 1000;
+      const key = interaction.channelId;
+
+      fightConfig.set(key, {
+        targetId: target.id,
+        expiresAt,
+        count: 0,
+      });
+
+      await interaction.reply({
+        content: `⚔️ 對線模式啟動！接下來 ${minutes} 分鐘內，我會反擊 ${target} 說的每一句話 😈\n（請注意：回嘴的不耐煩程度會隨著次數升級！）`,
+      });
+    }
+
+    // /停止對線
+    if (interaction.commandName === '停止對線') {
+      const key = interaction.channelId;
+      if (fightConfig.has(key)) {
+        fightConfig.delete(key);
+        await interaction.reply({ content: '好吧，先放你一馬，我懶得吵了。' });
+      } else {
+        await interaction.reply({ content: '我又沒在跟誰對線，你急什麼？' });
+      }
+    }
+
+    // /敷衍翻譯
+    if (interaction.commandName === '敷衍翻譯') {
+      const content = interaction.options.getString('內容');
+      const result = translateToRay(content);
+      await interaction.reply({ content: result });
     }
   } catch (error) {
     console.error('執行指令出錯：', error);
@@ -555,6 +685,23 @@ client.on('messageCreate', async (message) => {
   if (message.author.id === client.user.id) return;
 
   try {
+    // === 功能 0：對線模式 ===
+    const fight = fightConfig.get(message.channelId);
+    if (fight && message.author.id === fight.targetId && !message.author.bot) {
+      if (Date.now() > fight.expiresAt) {
+        fightConfig.delete(message.channelId);
+        await message.channel.send(`⚔️ 時間到了，我懶得跟 <@${fight.targetId}> 對線了，放學！`);
+        return;
+      }
+
+      fight.count++;
+      await sleep(500 + Math.random() * 1000);
+      const targetMention = `<@${fight.targetId}>`;
+      const reply = getFightReply(fight.count, targetMention);
+      await message.reply(reply);
+      return;
+    }
+
     const content = message.content;
     const isTargetBot = message.author.id === TARGET_BOT_ID;
     const isTargetUser = message.author.id === TARGET_USER_ID;
