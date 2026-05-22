@@ -428,6 +428,9 @@ function generateRayQuote(topic) {
 }
 
 function extractTopic(content) {
+  // Strip mentions first
+  let cleanContent = content.replace(/<@!?\d+>/g, '').trim();
+
   const patterns = [
     /學(.+?)嗎/,
     /學一下(.+)/,
@@ -438,20 +441,31 @@ function extractTopic(content) {
     /可以學一下(.+)/,
   ];
   for (const p of patterns) {
-    const m = content.match(p);
+    const m = cleanContent.match(p);
     if (m && m[1]) {
-      const topic = m[1].trim();
+      let topic = m[1].trim();
+      
+      // Clean up punctuation and helper particles at the start/end of the extracted topic
+      topic = topic.replace(/^[?？!！.。 ,，、\/\\_~+\-*]+/, '');
+      topic = topic.replace(/[?？!！.。 ,，、\/\\_~+\-*]+$/, '');
+      topic = topic.replace(/[嗎嘛吧呢啦呀啊哇]$/, '').trim();
+      
       const stopWords = [
         '嗎', '么', '嘛', '呢', '啦', '吧', '呀', '哇', '啊',
         '學', '不', '會', '能', '寫', '做', '弄',
         '這個', '那個', '什麼', '怎麼', '誰', '哪',
-        '學不學', '會不會', '能不能', '是不是'
+        '學不學', '會不會', '能不能', '是不是', '要不要'
       ];
       if (stopWords.includes(topic)) continue;
+      
+      // Filter out single character verbs/particles in Chinese
       if (topic.length === 1 && /[\u4e00-\u9fa5]/.test(topic)) {
-        const commonVerbsAndParticles = /^[學寫做弄看不聽說去來買用會能要想可好怕難懶]$/;
+        const commonVerbsAndParticles = /^[學寫做弄看不聽說去來買用會能要想可好怕難懶嗎]$/;
         if (commonVerbsAndParticles.test(topic)) continue;
       }
+      
+      if (!topic) continue;
+      
       return topic;
     }
   }
@@ -925,16 +939,30 @@ client.on('messageCreate', async (message) => {
     const isTargetUser = message.author.id === TARGET_USER_ID;
     const guard = guardConfig.get(message.channelId);
 
+    const topic = extractTopic(content);
+
     const pressureKeywords = [
       '學嗎', '不學', '為什麼不', '不喜歡', '會用到',
       '要不要學', '蠻重要', '你說啊', '所以...學嗎',
+      '專案', '不行吧', '不愛寫程式',
     ];
-    const isPressure = pressureKeywords.some((kw) => content.includes(kw));
+    const pressureRegexes = [
+      /學.*嗎/,
+      /學一下/,
+      /要不要學/,
+      /你看過.*嗎/,
+      /不.*學/,
+      /不喜歡.*程式/,
+    ];
+    let isPressure = pressureKeywords.some((kw) => content.includes(kw)) ||
+                     pressureRegexes.some((regex) => regex.test(content));
+    if (topic) {
+      isPressure = true;
+    }
 
     // === 功能 1：自動反壓榨（升級版）===
     if (isTargetBot && isPressure) {
       const count = addPressureCount(TARGET_USER_ID);
-      const topic = extractTopic(content);
       increaseRayBloodPressure(10); // 被壓榨每次血壓 +10
 
       await sleep(500 + Math.random() * 1000);
@@ -974,7 +1002,6 @@ client.on('messageCreate', async (message) => {
 
       const protectMention = `<@${guard.protectId}>`;
       const rayMention = `<@${guard.rayId}>`;
-      const topic = extractTopic(content);
       const roll = Math.random();
 
       if (roll < 0.3) {
