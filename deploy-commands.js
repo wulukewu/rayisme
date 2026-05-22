@@ -104,6 +104,28 @@ const commands = [
     .addStringOption((option) =>
       option.setName('內容').setDescription('要翻譯的文字').setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName('血壓')
+    .setDescription('查看 Ray 當前的血壓值與擺爛指數 📈'),
+
+  new SlashCommandBuilder()
+    .setName('抓戰犯')
+    .setDescription('為發生的問題尋找一個完美的戰犯（責任推卸系統） 🛡️')
+    .addStringOption((option) =>
+      option.setName('問題').setDescription('發生了什麼事').setRequired(true)
+    )
+    .addUserOption((option) =>
+      option.setName('對象').setDescription('指定戰犯（不指定則由系統隨機指派）').setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName('下班倒數')
+    .setDescription('計算距離靈魂下班（18:00）還有多久 ⏱️'),
+
+  new SlashCommandBuilder()
+    .setName('請假理由')
+    .setDescription('產生一個地表最強、極具創意且難以拒絕的請假藉口 🥱'),
 ].map((cmd) => cmd.toJSON());
 
 const rest = new REST().setToken(TOKEN);

@@ -184,7 +184,23 @@ const boomerangTemplates = [
 const guardConfig = new Map();
 const pressureCount = new Map(); // { odjectId: count }
 const considerTimers = new Map(); // { odjectId: { timerId, channelId, startTime } }
-const fightConfig = new Map(); // channelId -> { targetId, expiresAt, count }
+const fightConfig = new Map(); // channelId -> { targetId, expiresAt, count, timerId }
+
+let baseBP = 0; // 基礎血壓值 (0-100)
+let lastBPUpdateTime = Date.now(); // 上次血壓更新時間
+
+function getRayBloodPressure() {
+  const hoursPassed = (Date.now() - lastBPUpdateTime) / (60 * 60 * 1000);
+  const decay = Math.floor(hoursPassed) * 5;
+  return Math.max(0, baseBP - decay);
+}
+
+function increaseRayBloodPressure(amount) {
+  const current = getRayBloodPressure();
+  baseBP = Math.min(100, current + amount);
+  lastBPUpdateTime = Date.now();
+  saveData();
+}
 
 // ====== 對線模式漸進式語錄 ======
 const fightReplies = {
@@ -275,6 +291,73 @@ function translateToRay(text) {
   return `🥱 **Ray 風格翻譯結果：**\n「${opener} ${replies[0]}，${replies[1]}，${closer}。」`;
 }
 
+// ====== 抓戰犯語錄 ======
+const scapegoatExcuses = [
+  (target, issue) => `關於「${issue}」這件事，我看了看，這絕對是 ${target} 的責任。他上次寫 code 的時候多打了一個空白鍵，直接把整個專案的氣場給震碎了。`,
+  (target, issue) => `「${issue}」是吧？我合理的推斷這是 ${target} 的陰謀。他一定是在偷偷學 Vue 的時候忘記繳交作業，導致伺服器產生了強烈的幽怨感。`,
+  (target, issue) => `這還用問？「${issue}」肯定是 ${target} 的鍋。我今天根本沒開電腦，難道會是我的錯？我只是個無辜的 Bot 耶。`,
+  (target, issue) => `關於「${issue}」，我建議把 ${target} 抓去寫一整天的 Vue。因為根據風水推算，他今天命格缺 code，適合背鍋。`,
+  (target, issue) => `很明顯，「${issue}」是因為 ${target} 的頭像太過於耀眼，干擾了編譯器的紅外線感應。`,
+  (target, issue) => `不要找我，這件事情「${issue}」絕對是因為 ${target} 偷偷壓榨別人學 R 語言，引發了宇宙級的反彈能量。`,
+  (target, issue) => `我考慮了一下，「${issue}」應該是 ${target} 昨晚睡覺姿勢不對，導致今天大家寫程式碼都遇到了瓶頸。`,
+  (target, issue) => `別急著抓，「${issue}」我們先放著改天再說。真的要找戰犯的話，我選 ${target}，因為他看起來最不會反抗。`,
+];
+
+// ====== 地表最強請假理由 ======
+const leaveExcuses = [
+  '我的鍵盤今天早上突然失去了活下去的勇氣，它躺在那裡一動不動，我需要留在家裡開導它，今天請假一天。',
+  '昨天夢到 Vue 的官方文檔跟我說它今天不想上班。為了尊重底層技術，我考慮了一下決定在家陪它擺爛。',
+  '今天早上出門發現風向不對，打開 VS Code 可能會引發強烈的磁場混亂，為了公司主機與程式碼的安全，我決定請假避難。',
+  '我的手指今天突然想去探索宇宙的奧秘，它們拒絕觸碰鍵盤。為了不勉強它們，我決定今天放它們假。',
+  '床今天早上對我發動了強力的封印魔法，我掙扎了三個小時依然無法解除，今天被迫在家休養。',
+  '我今天起床的時候照鏡子，發現自己今天的命格不適合開會，為了大家的專案運勢，我考慮了一下先不要去公司。',
+  '今天下雨，雨滴敲打窗戶的聲音在暗示我：『改天再說』。我覺得不應該違背自然的旨意。',
+  '我的靈魂跟我說它已經累積了 120% 的怨念值，如果今天去上班，有可能會直接進化成「離職之王」，為了大家的和平，我今天先在家靜養。',
+];
+
+// ====== 下班倒數計算與語錄 ======
+function getOffWorkMessage() {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMin = now.getMinutes();
+
+  if (currentHour >= 18 || currentHour < 9) {
+    return `🥱 **下班倒數：**\n「現在已經是下班時間了！我的靈魂早已不在此地，大腦已進入防禦性擺爛狀態。有事明天再說，今天不想動腦。」`;
+  }
+
+  const targetHour = 18;
+  const remainingMins = (targetHour * 60) - (currentHour * 60 + currentMin);
+
+  const hours = Math.floor(remainingMins / 60);
+  const mins = remainingMins % 60;
+
+  const progressBars = [
+    `[████░░░░░░] 40% (摸魚黃金期) 摸魚中 🐟`,
+    `[████████░░] 80% (準備收拾包包) 收拾中 🎒`,
+    `[██████████] 100% (蓄勢待發，準備閃現) 閃現冷卻中 ⚡`,
+    `[█░░░░░░░░░] 10% (剛開始上班，極度痛苦) 痛苦挣扎中 😭`,
+    `[██░░░░░░░░] 20% (午餐吃什麼是唯一動力) 思考午餐中 🍔`
+  ];
+
+  let bar = progressBars[3];
+  if (hours < 1) bar = progressBars[2];
+  else if (hours < 2) bar = progressBars[1];
+  else if (hours < 4) bar = progressBars[0];
+  else if (hours >= 6) bar = progressBars[3];
+  else bar = progressBars[4];
+
+  const templates = [
+    `距離下班還有 **${hours}** 小時 **${mins}** 分鐘。偷偷跟你說，我的 IDE 其實已經關閉很久了，目前純粹用意志力在裝忙。`,
+    `距離下班還有 **${hours}** 小時 **${mins}** 分鐘！我已經在把手放鍵盤上擺拍了，只要時間一到，我就會發動瞬間移動直接消失。`,
+    `還有 **${hours}** 小時 **${mins}** 分鐘下班。建議這個時候不要問我任何重要問題，因為我的大腦已經提前關機了。`,
+    `還有 **${hours}** 小時 **${mins}** 分鐘...我考慮了一下，覺得這段時間很適合拿來發呆，隨便啦。`,
+    `下班倒數：**${hours}** 小時 **${mins}** 分鐘。此時此刻的我不適合動腦，好累喔。`
+  ];
+
+  const text = pickRandom(templates);
+  return `⏱️ **靈魂下班倒數中...**\n${bar}\n\n「${text}」`;
+}
+
 const DATA_FILE = './data.json';
 
 function loadData() {
@@ -282,22 +365,39 @@ function loadData() {
     if (fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, 'utf8');
       const parsed = JSON.parse(raw);
-      for (const [key, value] of Object.entries(parsed)) {
-        pressureCount.set(key, value);
+      
+      if (parsed.pressureCount && typeof parsed.pressureCount === 'object') {
+        // 新格式
+        for (const [key, value] of Object.entries(parsed.pressureCount)) {
+          pressureCount.set(key, value);
+        }
+        baseBP = typeof parsed.baseBP === 'number' ? parsed.baseBP : 0;
+        lastBPUpdateTime = typeof parsed.lastBPUpdateTime === 'number' ? parsed.lastBPUpdateTime : Date.now();
+      } else {
+        // 舊格式相容（整個 JSON 就是壓榨次數的 Map）
+        for (const [key, value] of Object.entries(parsed)) {
+          pressureCount.set(key, value);
+        }
+        baseBP = 0;
+        lastBPUpdateTime = Date.now();
       }
-      console.log('📊 歷史壓榨戰績載入成功！');
+      console.log('📊 歷史資料載入成功！');
     }
   } catch (error) {
-    console.error('載入戰績資料失敗：', error);
+    console.error('載入歷史資料失敗：', error);
   }
 }
 
 function saveData() {
   try {
-    const obj = Object.fromEntries(pressureCount);
+    const obj = {
+      pressureCount: Object.fromEntries(pressureCount),
+      baseBP,
+      lastBPUpdateTime,
+    };
     fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
   } catch (error) {
-    console.error('儲存戰績資料失敗：', error);
+    console.error('儲存歷史資料失敗：', error);
   }
 }
 
@@ -520,8 +620,10 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === '重置戰績') {
       const target = interaction.options.getUser('對象');
       pressureCount.delete(target.id);
+      baseBP = 0;
+      lastBPUpdateTime = Date.now();
       saveData();
-      await interaction.reply({ content: `${target} 的壓榨記錄已清除，給你一次重新做人的機會` });
+      await interaction.reply({ content: `${target} 的壓榨記錄已清除，同時也為 Ray 降壓成功，給你一次重新做人的機會 😌` });
     }
 
     // /考慮計時器
@@ -640,10 +742,27 @@ client.on('interactionCreate', async (interaction) => {
       const expiresAt = Date.now() + minutes * 60 * 1000;
       const key = interaction.channelId;
 
+      // 如果該頻道已有對線，先清除舊的計時器
+      const existing = fightConfig.get(key);
+      if (existing && existing.timerId) {
+        clearTimeout(existing.timerId);
+      }
+
+      // 設定主動停火計時器
+      const timerId = setTimeout(() => {
+        if (fightConfig.has(key)) {
+          fightConfig.delete(key);
+          interaction.channel
+            .send(`⚔️ 時間到了，我懶得跟 <@${target.id}> 對線了，放學！`)
+            .catch(() => {});
+        }
+      }, minutes * 60 * 1000);
+
       fightConfig.set(key, {
         targetId: target.id,
         expiresAt,
         count: 0,
+        timerId,
       });
 
       await interaction.reply({
@@ -654,7 +773,11 @@ client.on('interactionCreate', async (interaction) => {
     // /停止對線
     if (interaction.commandName === '停止對線') {
       const key = interaction.channelId;
-      if (fightConfig.has(key)) {
+      const existing = fightConfig.get(key);
+      if (existing) {
+        if (existing.timerId) {
+          clearTimeout(existing.timerId);
+        }
         fightConfig.delete(key);
         await interaction.reply({ content: '好吧，先放你一馬，我懶得吵了。' });
       } else {
@@ -667,6 +790,72 @@ client.on('interactionCreate', async (interaction) => {
       const content = interaction.options.getString('內容');
       const result = translateToRay(content);
       await interaction.reply({ content: result });
+    }
+
+    // /血壓
+    if (interaction.commandName === '血壓') {
+      const bp = getRayBloodPressure();
+      const barLength = Math.round(bp / 10);
+      const bar = '█'.repeat(barLength) + '░'.repeat(10 - barLength);
+      
+      let status = '健康 🟢 (極度放鬆，目前大概在睡覺或打傳說對決)';
+      let color = 0x00ff00;
+      if (bp >= 80) {
+        status = '危險 🔴 (極度暴躁！大腦處於離職邊緣，對所有訊息有 15% 機率回以抱怨！)';
+        color = 0xff0000;
+      } else if (bp >= 60) {
+        status = '偏高 🟠 (血壓上升，隨時可能已讀不回或開啟防禦性擺爛)';
+        color = 0xff8800;
+      } else if (bp >= 30) {
+        status = '稍微疲憊 🟡 (開始覺得工作沒意思，考慮要不要裝病請假)';
+        color = 0xffff00;
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('📈 Ray 的即時血壓與擺爛指數')
+        .addFields(
+          { name: '當前血壓值', value: `**${bp}** / 100`, inline: true },
+          { name: '健康狀態評估', value: status, inline: false },
+          { name: '擺爛狀態量表', value: `\`[${bar}]\` **${bp}%**`, inline: false }
+        )
+        .setColor(color)
+        .setFooter({ text: '血壓每小時會自然下降 5 點（若沒有人壓榨他的話）' });
+
+      await interaction.reply({ embeds: [embed] });
+    }
+
+    // /抓戰犯
+    if (interaction.commandName === '抓戰犯') {
+      const issue = interaction.options.getString('問題');
+      let targetUser = interaction.options.getUser('對象');
+
+      if (!targetUser) {
+        const members = Array.from(interaction.guild.members.cache.values()).filter((m) => !m.user.bot);
+        if (members.length > 0) {
+          targetUser = pickRandom(members).user;
+        } else {
+          targetUser = interaction.user;
+        }
+      }
+
+      const targetMention = `<@${targetUser.id}>`;
+      const excuse = pickRandom(scapegoatExcuses)(targetMention, issue);
+
+      await interaction.reply({ content: `🛡️ **戰犯調查報告：**\n${excuse}` });
+    }
+
+    // /下班倒數
+    if (interaction.commandName === '下班倒數') {
+      const msg = getOffWorkMessage();
+      await interaction.reply({ content: msg });
+    }
+
+    // /請假理由
+    if (interaction.commandName === '請假理由') {
+      const excuse = pickRandom(leaveExcuses);
+      await interaction.reply({
+        content: `🥱 **經過深度考慮後的完美請假理由：**\n「${excuse}」`,
+      });
     }
   } catch (error) {
     console.error('執行指令出錯：', error);
@@ -695,11 +884,31 @@ client.on('messageCreate', async (message) => {
       }
 
       fight.count++;
+      increaseRayBloodPressure(5); // 對線模式每次回話血壓 +5
       await sleep(500 + Math.random() * 1000);
       const targetMention = `<@${fight.targetId}>`;
       const reply = getFightReply(fight.count, targetMention);
       await message.reply(reply);
       return;
+    }
+
+    // === 功能 0.5：高血壓隨機暴躁/擺爛模式 ===
+    if (!message.author.bot) {
+      const bp = getRayBloodPressure();
+      if (bp >= 80 && Math.random() < 0.15) {
+        await sleep(500 + Math.random() * 1000);
+        const complaints = [
+          '好累喔...別吵我啦...',
+          '我的血壓爆表了，不想說話。',
+          '（已讀不回）...呃，隨便啦。',
+          '不要跟我講話，我正在考慮要不要離職。',
+          '大腦休眠中，請勿打擾。',
+          '好累，懶得理你們。',
+          '...（裝作沒看到）',
+        ];
+        await message.reply(pickRandom(complaints));
+        return;
+      }
     }
 
     const content = message.content;
@@ -717,6 +926,7 @@ client.on('messageCreate', async (message) => {
     if (isTargetBot && isPressure) {
       const count = addPressureCount(TARGET_USER_ID);
       const topic = extractTopic(content);
+      increaseRayBloodPressure(10); // 被壓榨每次血壓 +10
 
       await sleep(500 + Math.random() * 1000);
       await message.reply(getAntiPressureReply(count, topic));
